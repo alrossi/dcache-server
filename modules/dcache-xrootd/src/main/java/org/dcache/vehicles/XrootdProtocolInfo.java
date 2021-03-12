@@ -43,6 +43,18 @@ public class XrootdProtocolInfo implements IpProtocolInfo {
 
     private InetSocketAddress _clientSocketAddress;
 
+    /**
+     *  With the ZTN protocol, this field is no longer specific to GSI
+     *  but can hold a (String) token.
+     *  <p/>
+     *  JWT tokens can be passed in during the login and
+     *  appear as private credentials on the subject (BearerTokens).
+     *  <p/>
+     *  These should serve as the default JWT token, in case specific tokens
+     *  are not present in the opaque data on path queries.
+     *  <p/>
+     *  They need to be conveyed to the pool in case of third-party-copy.
+     */
     private Serializable delegatedCredential;
 
     private Long _tpcUid;

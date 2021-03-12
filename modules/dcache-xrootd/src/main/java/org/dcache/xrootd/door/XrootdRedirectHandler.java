@@ -19,13 +19,18 @@ package org.dcache.xrootd.door;
 
 import com.google.common.base.Strings;
 import com.google.common.net.InetAddresses;
+import diskCacheV111.util.CacheException;
+import diskCacheV111.util.FileExistsCacheException;
+import diskCacheV111.util.FileIsNewCacheException;
+import diskCacheV111.util.FileNotFoundCacheException;
+import diskCacheV111.util.FsPath;
+import diskCacheV111.util.NotFileCacheException;
+import diskCacheV111.util.PermissionDeniedCacheException;
+import diskCacheV111.util.TimeoutCacheException;
+import dmg.cells.nucleus.CellPath;
 import io.netty.channel.ChannelHandlerContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.security.auth.Subject;
-
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
@@ -36,23 +41,14 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
-
-import diskCacheV111.util.CacheException;
-import diskCacheV111.util.FileExistsCacheException;
-import diskCacheV111.util.FileIsNewCacheException;
-import diskCacheV111.util.FileNotFoundCacheException;
-import diskCacheV111.util.FsPath;
-import diskCacheV111.util.NotFileCacheException;
-import diskCacheV111.util.PermissionDeniedCacheException;
-import diskCacheV111.util.TimeoutCacheException;
-
-import dmg.cells.nucleus.CellPath;
-
+import javax.security.auth.Subject;
+import org.dcache.auth.BearerTokenCredential;
 import org.dcache.auth.LoginReply;
 import org.dcache.auth.Subjects;
 import org.dcache.auth.attributes.LoginAttributes;
@@ -67,7 +63,7 @@ import org.dcache.vehicles.PnfsListDirectoryMessage;
 import org.dcache.xrootd.core.XrootdException;
 import org.dcache.xrootd.core.XrootdSession;
 import org.dcache.xrootd.protocol.XrootdProtocol;
-import org.dcache.xrootd.protocol.XrootdProtocol.*;
+import org.dcache.xrootd.protocol.XrootdProtocol.FilePerm;
 import org.dcache.xrootd.protocol.messages.AwaitAsyncResponse;
 import org.dcache.xrootd.protocol.messages.CloseRequest;
 import org.dcache.xrootd.protocol.messages.DirListRequest;
@@ -93,6 +89,8 @@ import org.dcache.xrootd.util.ChecksumInfo;
 import org.dcache.xrootd.util.FileStatus;
 import org.dcache.xrootd.util.OpaqueStringParser;
 import org.dcache.xrootd.util.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.dcache.xrootd.CacheExceptionMapper.xrootdErrorCode;
 import static org.dcache.xrootd.CacheExceptionMapper.xrootdException;
@@ -344,7 +342,7 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
                     persistOnSuccessfulClose,
                     ((sessionInfo.isLoggedIn()) ?
                         sessionInfo.getUserRootPath() : _rootPath),
-                    req.getSession().getDelegatedCredential(),
+                    getDelegatedCredential(req.getSession()),
                     opaque);
             } else {
                 /*
@@ -643,6 +641,24 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
         _log.info("TRIED : {}", triedHosts);
 
         return triedHosts;
+    }
+
+    private Serializable getDelegatedCredential(XrootdSession session)
+    {
+        if (session == null) {
+            return null;
+        }
+
+        Serializable credential = session.getDelegatedCredential();
+        if (credential == null) {
+            Optional<String> defaultToken
+                = BearerTokenCredential.getBearerTokenFromSubject(session.getSubject());
+            if (defaultToken.isPresent()) {
+                credential = defaultToken.get();
+            }
+        }
+
+        return credential;
     }
 
     private String getTpcClientId(XrootdSession session) {
