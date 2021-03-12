@@ -59,47 +59,31 @@ documents or software obtained from this server.
  */
 package org.dcache.xrootd.plugins.authz;
 
-import io.netty.channel.ChannelHandlerContext;
-
 import org.dcache.auth.LoginStrategy;
 import org.dcache.auth.LoginStrategyAware;
-import org.dcache.xrootd.plugins.AuthorizationFactory;
-import org.dcache.xrootd.plugins.AuthorizationHandler;
+import org.dcache.xrootd.plugins.authz.scitokens.AbstractSciTokenAuthzFactory;
+import org.dcache.xrootd.security.TokenValidator;
 
-public class XrootdSciTokenAuthzFactory implements AuthorizationFactory,
-                                                   LoginStrategyAware
-{
-    private final boolean strict;
+/**
+ *  Factory which provides a Gplazma LoginStrategy token validator.
+ *  <p/>
+ *  The property <br/>
+ *
+ *      xrootd.plugin!scitokens.authz-factory.class=org.dcache.xrootd.plugins.authz.GplazmaLoginSciTokenAuthzFactory<br/>
+ *
+ *  should be set to use this implementation. (This is the default as defined in the properties file.)
+ */
+public class GplazmaLoginSciTokenAuthzFactory extends AbstractSciTokenAuthzFactory
+                                              implements LoginStrategyAware {
+  private LoginStrategy loginStrategy;
 
-    private LoginStrategy loginStrategy;
+  @Override
+  protected TokenValidator getValidatorInstance() {
+    return new GplazmaLoginSciTokenValidator(loginStrategy);
+  }
 
-    public XrootdSciTokenAuthzFactory(boolean strict)
-    {
-        this.strict = strict;
-    }
-
-    @Override
-    public AuthorizationHandler createHandler(ChannelHandlerContext ctx)
-    {
-        return new XrootdSciTokenAuthzHandler(loginStrategy, strict, ctx);
-    }
-
-    @Override
-    public String getDescription()
-    {
-        return "Authorizes requests based on a scitoken "
-                        + "passed in as path query element";
-    }
-
-    @Override
-    public String getName()
-    {
-        return XrootdSciTokenAuthzProvider.NAME;
-    }
-
-    @Override
-    public void setLoginStrategy(LoginStrategy loginStrategy)
-    {
-        this.loginStrategy = loginStrategy;
-    }
+  @Override
+  public void setLoginStrategy(LoginStrategy loginStrategy) {
+      this.loginStrategy = loginStrategy;
+  }
 }
