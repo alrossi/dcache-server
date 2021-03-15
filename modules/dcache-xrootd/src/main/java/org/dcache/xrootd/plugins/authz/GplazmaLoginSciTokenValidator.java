@@ -62,7 +62,6 @@ package org.dcache.xrootd.plugins.authz;
 import diskCacheV111.util.CacheException;
 import diskCacheV111.util.PermissionDeniedCacheException;
 import io.netty.channel.ChannelHandlerContext;
-import java.util.Optional;
 import javax.security.auth.Subject;
 import org.dcache.auth.BearerTokenCredential;
 import org.dcache.auth.LoginReply;
@@ -115,10 +114,5 @@ public class GplazmaLoginSciTokenValidator implements TokenValidator {
      */
     LOGGER.debug("notifying door of new login reply: {}.", loginReply);
     ctx.fireUserEventTriggered(new LoginEvent(loginReply));
-  }
-
-  @Override
-  public Optional<String> getTokenFromSubject(Subject subject) {
-    return BearerTokenCredential.getBearerTokenFromSubject(subject);
   }
 }
