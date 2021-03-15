@@ -380,7 +380,7 @@ public class XrootdPoolRequestHandler extends AbstractXrootdRequestHandler
                         _log.debug("Request to open {} is as third-party destination.", msg);
 
                         XrootdTpcInfo tpcInfo = new XrootdTpcInfo(opaqueMap);
-                        tpcInfo.setDelegatedProxy(file.getProtocolInfo().getDelegatedCredential());
+                        tpcInfo.setDelegatedProxy(protocolInfo.getDelegatedCredential());
 
                         descriptor = new TpcWriteDescriptor(file, posc, ctx,
                             _server,
@@ -399,7 +399,7 @@ public class XrootdPoolRequestHandler extends AbstractXrootdRequestHandler
                 int fd = getUnusedFileDescriptor();
                 _descriptors.set(fd, descriptor);
 
-                _redirectingDoor = file.getProtocolInfo().getDoorAddress();
+                _redirectingDoor = protocolInfo.getDoorAddress();
                 file = null;
                 _hasOpenedFiles = true;
 
