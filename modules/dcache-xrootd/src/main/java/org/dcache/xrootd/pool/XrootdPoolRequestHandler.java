@@ -21,11 +21,12 @@ import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
-import diskCacheV111.util.CacheException;
-import diskCacheV111.util.FileCorruptedCacheException;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
@@ -37,6 +38,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+
+import diskCacheV111.util.CacheException;
+import diskCacheV111.util.FileCorruptedCacheException;
+
 import org.dcache.namespace.FileAttribute;
 import org.dcache.pool.movers.NettyTransferService;
 import org.dcache.pool.repository.OutOfDiskException;
@@ -82,26 +87,8 @@ import org.dcache.xrootd.util.ChecksumInfo;
 import org.dcache.xrootd.util.FileStatus;
 import org.dcache.xrootd.util.OpaqueStringParser;
 import org.dcache.xrootd.util.ParseException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import static java.nio.charset.StandardCharsets.US_ASCII;
-import static org.dcache.xrootd.protocol.XrootdProtocol.UUID_PREFIX;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_ArgInvalid;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_ArgMissing;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_ArgTooLong;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_FileNotOpen;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_IOError;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_NoSpace;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_NotAuthorized;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_NotFile;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_Qcksum;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_Qconfig;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_ServerError;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_Unsupported;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_error;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_login;
-import static org.dcache.xrootd.protocol.XrootdProtocol.kXR_posc;
+import static org.dcache.xrootd.protocol.XrootdProtocol.*;
 
 /**
  * XrootdPoolRequestHandler is an xrootd request processor on the pool
@@ -324,23 +311,10 @@ public class XrootdPoolRequestHandler extends AbstractXrootdRequestHandler
     protected XrootdResponse<AuthenticationRequest> doOnAuthentication(ChannelHandlerContext ctx,
                                                                        AuthenticationRequest msg)
     {
-        /*
+        /**
          *  Should only receive this request if signed hash verification is
-         *  on (e.g., using UNIX protocol); it is assumed that other security
-         *  protocols (e.g. token handlers) will be in the pipeline to intercept
-         *  the message before this one.
-         *
-         *  We do not need to check the credential, but we deserialize it and
-         *  release the buffer.
+         *  on (e.g., using UNIX protocol).
          */
-        String type = msg.getCredType();
-        int credLen = msg.getCredLen();
-        String credential = msg.getCredentialBuffer().toString(0, credLen, US_ASCII);
-        msg.releaseBuffer();
-
-        _log.debug("doOnAuthentication received AuthenticationRequest for cred type {}, "
-            + "cred {}, sending OK response.", type, credential);
-
         return withOk(msg);
     }
 
@@ -400,13 +374,14 @@ public class XrootdPoolRequestHandler extends AbstractXrootdRequestHandler
                     throw new XrootdException(kXR_Unsupported, "File exists.");
                 } else if ((msg.isNew() || msg.isReadWrite()) && isWrite) {
                     boolean posc = (msg.getOptions() & kXR_posc) == kXR_posc ||
-                        protocolInfo.getFlags().contains(XrootdProtocolInfo.Flags.POSC);
+                        file.getProtocolInfo().getFlags()
+                            .contains(XrootdProtocolInfo.Flags.POSC);
                     if (opaqueMap.containsKey("tpc.src")) {
                         _log.debug("Request to open {} is as third-party destination.", msg);
+
                         XrootdTpcInfo tpcInfo = new XrootdTpcInfo(opaqueMap);
-                        tpcInfo.setDelegatedProxy(protocolInfo.getDelegatedCredential());
-                        tpcInfo.setUid(protocolInfo.getTpcUid());
-                        tpcInfo.setGid(protocolInfo.getTpcGid());
+                        tpcInfo.setDelegatedProxy(file.getProtocolInfo().getDelegatedCredential());
+
                         descriptor = new TpcWriteDescriptor(file, posc, ctx,
                             _server,
                             opaqueMap.get("org.dcache.xrootd.client"),
@@ -424,7 +399,7 @@ public class XrootdPoolRequestHandler extends AbstractXrootdRequestHandler
                 int fd = getUnusedFileDescriptor();
                 _descriptors.set(fd, descriptor);
 
-                _redirectingDoor = protocolInfo.getDoorAddress();
+                _redirectingDoor = file.getProtocolInfo().getDoorAddress();
                 file = null;
                 _hasOpenedFiles = true;
 

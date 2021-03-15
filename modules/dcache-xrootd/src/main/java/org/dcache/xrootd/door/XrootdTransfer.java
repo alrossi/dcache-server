@@ -1,16 +1,18 @@
 package org.dcache.xrootd.door;
 
-import diskCacheV111.util.FsPath;
-import diskCacheV111.util.PnfsHandler;
-import diskCacheV111.vehicles.ProtocolInfo;
-import dmg.cells.nucleus.CellPath;
+import javax.security.auth.Subject;
+
 import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.UUID;
-import javax.security.auth.Subject;
-import org.dcache.auth.Subjects;
+
+import diskCacheV111.util.FsPath;
+import diskCacheV111.util.PnfsHandler;
+import diskCacheV111.vehicles.ProtocolInfo;
+
+import dmg.cells.nucleus.CellPath;
+
 import org.dcache.auth.attributes.Restriction;
 import org.dcache.util.RedirectedTransfer;
 import org.dcache.vehicles.FileAttributes;
@@ -31,16 +33,6 @@ public class XrootdTransfer extends RedirectedTransfer<InetSocketAddress>
             Restriction restriction, FsPath path, Map<String,String> opaque) throws ParseException {
         super(pnfs, subject, restriction, path);
         tpcInfo = new XrootdTpcInfo(opaque);
-        try {
-            tpcInfo.setUid(Subjects.getUid(subject));
-        } catch (NoSuchElementException e) {
-            /** No UID, leave <code>null</code>*/
-        }
-        try {
-            tpcInfo.setGid(Subjects.getPrimaryGid(subject));
-        } catch (NoSuchElementException e) {
-            /** No Primary GID, leave <code>null</code>*/
-        }
     }
 
     public synchronized void setFileHandle(int fileHandle) {
@@ -76,12 +68,6 @@ public class XrootdTransfer extends RedirectedTransfer<InetSocketAddress>
     protected ProtocolInfo getProtocolInfoForPool() {
         XrootdProtocolInfo info = createXrootdProtocolInfo();
         info.setDelegatedCredential(_delegatedCredential);
-        /*
-         * In order to conform with xroot unix protocol if (a) we do TPC from a dCache source
-         * (b) signed hash verification is on rather than TLS.
-         */
-        info.setTpcUid(tpcInfo.getUid());
-        info.setTpcGid(tpcInfo.getGid());
         return info;
     }
 

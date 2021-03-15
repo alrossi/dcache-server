@@ -45,10 +45,6 @@ public class XrootdProtocolInfo implements IpProtocolInfo {
 
     private Serializable delegatedCredential;
 
-    private Long _tpcUid;
-
-    private Long _tpcGid;
-
     public XrootdProtocolInfo(String protocol, int major, int minor,
                               InetSocketAddress clientAddress, CellPath pathToDoor, PnfsId pnfsID,
                               int xrootdFileHandle, UUID uuid,
@@ -69,16 +65,6 @@ public class XrootdProtocolInfo implements IpProtocolInfo {
     public Serializable getDelegatedCredential()
     {
         return delegatedCredential;
-    }
-
-    public Long getTpcUid()
-    {
-        return _tpcUid;
-    }
-
-    public Long getTpcGid()
-    {
-        return _tpcGid;
     }
 
     @Override
@@ -146,15 +132,5 @@ public class XrootdProtocolInfo implements IpProtocolInfo {
     public void setDelegatedCredential(Serializable delegatedCredential)
     {
         this.delegatedCredential = delegatedCredential;
-    }
-
-    public void setTpcUid(Long tpcUid)
-    {
-        _tpcUid = tpcUid;
-    }
-
-    public void setTpcGid(Long tpcGid)
-    {
-        _tpcGid = tpcGid;
     }
 }
