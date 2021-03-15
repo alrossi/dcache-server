@@ -13,17 +13,11 @@ public class BearerTokenCredential implements Serializable
     private static final long serialVersionUID = -5933313664563503235L;
 
     public static Optional<String> getBearerTokenFromSubject(Subject subject) {
-        Optional<BearerTokenCredential> cred
-            = subject.getPrivateCredentials().stream()
-            .filter(t -> t instanceof BearerTokenCredential)
-            .map(BearerTokenCredential.class::cast)
-            .findAny();
-
-        if (cred.isPresent()) {
-            return Optional.of(cred.get().getToken());
-        }
-
-        return Optional.empty();
+        return subject.getPrivateCredentials().stream()
+                      .filter(t -> t instanceof BearerTokenCredential)
+                      .map(BearerTokenCredential.class::cast)
+                      .findAny()
+                      .map(BearerTokenCredential::getToken);
     }
 
     private final String _token;
