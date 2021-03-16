@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:property-placeholder/>
+    <context:annotation-config/>
+
+    <bean id="PinManager" class="org.dcache.cells.CellStub">
+      <description>Pinmanager endpoint</description>
+      <property name="destination" value="${qos.service.pinmanager}"/>
+      <property name="timeout" value="${qos.service.pinmanager.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.pinmanager.timeout.unit}"/>
+      <property name="flags" value="#{ T(dmg.cells.nucleus.CellEndpoint.SendFlag).RETRY_ON_NO_ROUTE_TO_CELL }"/>
+    </bean>
+
+    <bean id="Pools" class="org.dcache.cells.CellStub">
+      <description>For communication with pools</description>
+      <property name="timeout" value="${qos.service.pool.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.pool.timeout.unit}"/>
+    </bean>
+
+    <bean id="VerificationService" class="org.dcache.cells.CellStub">
+      <property name="destination" value="${qos.service.verification}"/>
+      <property name="timeout" value="${qos.service.verification.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.verification.timeout.unit}"/>
+      <property name="flags" value="#{ T(dmg.cells.nucleus.CellEndpoint.SendFlag).RETRY_ON_NO_ROUTE_TO_CELL }"/>
+    </bean>
+
+    <bean id="AdjusterFactory" class="org.dcache.qos.services.adjuster.adjusters.QoSAdjusterFactory">
+      <property name="scheduledExecutor">
+        <bean class="org.dcache.util.CDCScheduledExecutorServiceDecorator">
+          <description>preserves the QOS session id generated for the task</description>
+          <constructor-arg>
+            <bean class="java.util.concurrent.ScheduledThreadPoolExecutor" destroy-method="shutdownNow">
+              <constructor-arg value="${qos.limits.adjuster.task-threads}"/>
+            </bean>
+          </constructor-arg>
+        </bean>
+      </property>
+      <property name="pools" ref="Pools"/>
+      <property name="pinManager" ref="PinManager"/>
+      <property name="completionHandler">
+        <bean class="org.dcache.qos.services.adjuster.handlers.QoSAdjustTaskCompletionHandler">
+          <property name="map" ref="AdjusterTaskMap"/>
+        </bean>
+      </property>
+    </bean>
+
+    <bean id="AdjusterExecutor" class="org.dcache.util.CDCScheduledExecutorServiceDecorator">
+      <description>preserves the QOS session id generated for the task</description>
+      <constructor-arg>
+        <bean class="java.util.concurrent.ScheduledThreadPoolExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="${qos.limits.adjuster.submit-threads}"/>
+        </bean>
+      </constructor-arg>
+    </bean>
+
+    <bean id="AdjusterTaskMap" class="org.dcache.qos.services.adjuster.data.QoSAdjusterTaskMap"
+      init-method="initialize" destroy-method="shutdown">
+      <property name="timeout" value="${qos.limits.adjuster.scan-period}"/>
+      <property name="timeoutUnit" value="${qos.limits.adjuster.scan-period.unit}"/>
+      <property name="maxRetries" value="${qos.limits.adjuster.task-retries}"/>
+      <property name="maxRunning" value="${qos.limits.adjuster.task-threads}"/>
+      <property name="executorService" ref="AdjusterExecutor"/>
+      <property name="counters" ref="QoSAdjusterCounters"/>
+      <property name="factory" ref="AdjusterFactory"/>
+      <property name="history" ref="TaskHistory"/>
+      <property name="handler" ref="AdjusterTaskHandler"/>
+    </bean>
+
+    <bean id="AdjusterTaskHandler" class="org.dcache.qos.services.adjuster.handlers.QoSAdjusterTaskHandler">
+      <property name="taskMap" ref="AdjusterTaskMap"/>
+      <property name="taskService" ref="AdjusterExecutor"/>
+      <property name="verificationListener" ref="VerificationClient"/>
+    </bean>
+
+    <bean id="QoSAdjusterCounters" class="org.dcache.qos.services.adjuster.util.QoSAdjusterCounters"
+            init-method="initialize">
+      <property name="statisticsPath" value="${qos.home}/adjuster-statistics"/>
+    </bean>
+
+  <bean id="TaskHistory" class="org.dcache.qos.util.QoSHistory" init-method="initialize">
+      <property name="capacity" value="${qos.limits.adjuster.task-history}"/>
+    </bean>
+
+    <bean id="AdjusterAdmin" class="org.dcache.qos.services.adjuster.admin.QoSAdjusterAdmin">
+      <property name="taskMap" ref="AdjusterTaskMap"/>
+      <property name="counters" ref="QoSAdjusterCounters"/>
+      <property name="history" ref="TaskHistory"/>
+      <property name="messageGuard" ref="MessageGuard"/>
+    </bean>
+
+    <bean id="VerificationClient" class="org.dcache.qos.remote.clients.RemoteQoSVerificationClient">
+      <property name="verificationService" ref="VerificationService"/>
+    </bean>
+
+    <!-- There is no map initialization, so the message guard can be enabled at initialization -->
+    <bean id="MessageGuard" class="org.dcache.qos.util.MessageGuard" init-method="enable">
+      <property name="backlogHandler" ref="BacklogHandler"/>
+    </bean>
+
+    <bean id="BacklogHandler" class="org.dcache.qos.util.SerializingBacklogHandler"
+                              init-method="initialize" destroy-method="shutdown">
+      <constructor-arg value="${qos.home}/backlogged-messages"/>
+      <property name="receivers">
+        <set></set>
+      </property>
+    </bean>
+
+    <bean id="AdjustmentReceiver"  class="org.dcache.qos.remote.receivers.QoSAdjustmentReceiver">
+      <property name="messageGuard" ref="MessageGuard"/>
+      <property name="taskHandler" ref="AdjusterTaskHandler"/>
+    </bean>
+</beans>

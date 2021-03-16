@@ -38,6 +38,13 @@
     <property name="timeoutUnit" value="${bulk.service.ping.timeout.unit}"/>
   </bean>
 
+  <bean id="qos-engine-stub" class="org.dcache.cells.CellStub">
+    <description>QoS Engine communication stub</description>
+    <property name="destination" value="${bulk.service.qos}"/>
+    <property name="timeout" value="${bulk.service.qos.timeout}"/>
+    <property name="timeoutUnit" value="${bulk.service.qos.timeout.unit}"/>
+  </bean>
+
   <bean id="pool-monitor" class="org.dcache.poolmanager.RemotePoolMonitor">
     <description>Maintains runtime information about all pools</description>
     <property name="poolManagerStub" ref="pool-manager-stub"/>
@@ -131,13 +138,19 @@
       <description>In-memory Storage for jobs</description>
   </bean>
 
+  <bean id="qos-response-receiver" class="org.dcache.services.bulk.util.QoSResponseReceiver">
+      <description>Relays QoS responses to waiting jobs.</description>
+  </bean>
+
   <bean id="job-factory" class="org.dcache.services.bulk.job.BulkJobFactory">
     <description>Factory for creating various types of bulk jobs; uses SPI to load providers.</description>
     <property name="pnfsManager" ref="pnfs-manager-stub"/>
     <property name="pinManager" ref="pin-manager-stub"/>
     <property name="poolManager" ref="pool-manager-stub"/>
     <property name="poolMonitor" ref="pool-monitor"/>
+    <property name="qosEngine" ref="qos-engine-stub"/>
     <property name="pingService" ref="ping-service"/>
+    <property name="qoSResponseReceiver" ref="qos-response-receiver"/>
   </bean>
 
   <bean id="statistics" class="org.dcache.services.bulk.util.BulkServiceStatistics">

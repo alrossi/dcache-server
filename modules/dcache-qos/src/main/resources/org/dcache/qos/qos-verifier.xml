@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:property-placeholder/>
+    <context:annotation-config/>
+
+    <bean id="PnfsManager" class="org.dcache.cells.CellStub">
+      <description>PnfsManager communication stub</description>
+      <property name="destination" value="${qos.service.pnfsmanager}"/>
+      <property name="timeout" value="${qos.service.pnfsmanager.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.pnfsmanager.timeout.unit}"/>
+    </bean>
+
+    <bean id="Pools" class="org.dcache.cells.CellStub">
+      <description>For communication with pools</description>
+      <property name="timeout" value="${qos.service.pool.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.pool.timeout.unit}"/>
+    </bean>
+
+    <bean id="RequirementsService" class="org.dcache.cells.CellStub">
+      <property name="destination" value="${qos.service.requirements}"/>
+      <property name="timeout" value="${qos.service.requirements.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.requirements.timeout.unit}"/>
+      <property name="flags" value="#{ T(dmg.cells.nucleus.CellEndpoint.SendFlag).RETRY_ON_NO_ROUTE_TO_CELL }"/>
+    </bean>
+
+    <bean id="AdjustmentService" class="org.dcache.cells.CellStub">
+      <property name="destination" value="${qos.service.adjustment}"/>
+      <property name="timeout" value="${qos.service.adjustment.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.adjustment.timeout.unit}"/>
+      <property name="flags" value="#{ T(dmg.cells.nucleus.CellEndpoint.SendFlag).RETRY_ON_NO_ROUTE_TO_CELL }"/>
+    </bean>
+
+    <bean id="ScannerService" class="org.dcache.cells.CellStub">
+      <property name="destination" value="${qos.service.scanner}"/>
+      <property name="timeout" value="${qos.service.scanner.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.scanner.timeout.unit}"/>
+      <property name="flags" value="#{ T(dmg.cells.nucleus.CellEndpoint.SendFlag).RETRY_ON_NO_ROUTE_TO_CELL }"/>
+    </bean>
+
+    <bean id="StatusVerifier" class="org.dcache.qos.services.verifier.handlers.PoolGroupAndTagsQoSVerifier">
+      <property name="locationSelector">
+        <bean class="org.dcache.qos.services.verifier.util.PoolInfoLocationSelector">
+          <property name="poolInfoMap" ref="PoolInfoMap"/>
+          <property name="poolSelectionStrategy">
+            <bean class="${qos.pool-selection-strategy}"/>
+          </property>
+        </bean>
+      </property>
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+      <property name="pools" ref="Pools"/>
+    </bean>
+
+    <bean id="PoolInfoMap" class="org.dcache.qos.services.verifier.data.PoolInfoMap">
+    </bean>
+
+    <bean id="FileOpMap" class="org.dcache.qos.services.verifier.data.FileQoSOperationMap"
+                         destroy-method="shutdown">
+      <property name="timeout" value="${qos.limits.verifier.scan-period}"/>
+      <property name="timeoutUnit" value="${qos.limits.verifier.scan-period.unit}"/>
+      <property name="counters" ref="QoSVerifierCounters"/>
+      <property name="history" ref="OperationHistory"/>
+      <property name="maxRunning" value="${qos.limits.verifier.max-running-operations}"/>
+      <property name="maxStaging" value="${qos.limits.verifier.staging-max-allocation}"/>
+      <property name="maxRetries" value="${qos.limits.verifier.operation-retries}"/>
+      <property name="checkpointExpiry" value="${qos.limits.checkpoint-expiry}"/>
+      <property name="checkpointExpiryUnit" value="${qos.limits.checkpoint-expiry.unit}"/>
+      <property name="checkpointFilePath" value="${qos.home}/verifier-operation-map"/>
+      <property name="checkpointHandler" ref="CheckpointHandler"/>
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+      <property name="operationHandler" ref="FileOpHandler"/>
+    </bean>
+
+    <bean id="FileOpHandler" class="org.dcache.qos.services.verifier.handlers.FileQoSOperationHandler">
+      <property name="launchDelay" value="${qos.limits.verification.launch-delay}"/>
+      <property name="launchDelayUnit" value="${qos.limits.verification.launch-delay.unit}"/>
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+      <property name="fileOpMap" ref="FileOpMap"/>
+      <property name="statusVerifier" ref="StatusVerifier"/>
+      <property name="updateExecutor">
+        <bean class="org.dcache.util.BoundedCachedExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="${qos.limits.verifier.submit-threads}"/>
+        </bean>
+      </property>
+      <property name="bulkExecutor">
+        <bean class="org.dcache.util.BoundedCachedExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="${qos.limits.verifier.bulk-threads}"/>
+        </bean>
+      </property>
+      <property name="taskExecutor">
+        <bean class="java.util.concurrent.ScheduledThreadPoolExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="${qos.limits.verifier.task-threads}"/>
+        </bean>
+      </property>
+      <property name="scanResponseListener" ref="ScanResponseClient"/>
+      <property name="adjustmentListener" ref="AdjustmentClient"/>
+      <property name="requirementsListener" ref="RequirementsClient"/>
+      <property name="actionCompletedListener" ref="ActionCompletedClient"/>
+      <property name="counters" ref="QoSVerifierCounters"/>
+    </bean>
+
+    <bean id="CheckpointHandler" class="org.dcache.qos.services.verifier.handlers.CheckpointHandler">
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+      <property name="fileQoSOperationMap" ref="FileOpMap"/>
+    </bean>
+
+    <bean id="QoSVerifierCounters" class="org.dcache.qos.services.verifier.util.QoSVerifierCounters"
+                                   init-method="initialize">
+      <property name="statisticsPath" value="${qos.home}/verifier-statistics"/>
+    </bean>
+
+    <bean id="OperationHistory" class="org.dcache.qos.util.QoSHistory" init-method="initialize">
+      <property name="capacity" value="${qos.limits.verifier.operation-history}"/>
+    </bean>
+
+    <bean id="PoolInfoChangeHandler" class="org.dcache.qos.services.verifier.handlers.PoolInfoChangeHandler"
+                                     destroy-method="stopWatchdog">
+      <property name="mapInitializer" ref="VerifierMapInitializer"/>
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+      <property name="fileOperationMap" ref="FileOpMap"/>
+      <property name="updateService">
+        <bean class="java.util.concurrent.ScheduledThreadPoolExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="1"/>
+        </bean>
+      </property>
+      <property name="refreshTimeout" value="${qos.limits.pool-info-expiry}"/>
+      <property name="refreshTimeoutUnit" value="${qos.limits.pool-info-expiry.unit}"/>
+    </bean>
+
+    <bean id="VerifierMapInitializer" class="org.dcache.qos.services.verifier.util.VerifierMapInitializer"
+                                     init-method="initialize">
+      <property name="initDelay" value="${qos.limits.startup-delay}"/>
+      <property name="initDelayUnit" value="${qos.limits.startup-delay.unit}"/>
+      <property name="initService">
+        <bean class="java.util.concurrent.ScheduledThreadPoolExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="2"/>
+        </bean>
+      </property>
+      <property name="messageGuard" ref="MessageGuard"/>
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+      <property name="fileOperationMap" ref="FileOpMap"/>
+      <property name="changeHandler" ref="PoolInfoChangeHandler"/>
+    </bean>
+
+    <bean id="VerifierAdmin" class="org.dcache.qos.services.verifier.admin.QoSVerifierAdmin">
+      <property name="messageGuard" ref="MessageGuard"/>
+      <property name="initializer" ref="VerifierMapInitializer"/>
+      <property name="counters" ref="QoSVerifierCounters"/>
+      <property name="history" ref="OperationHistory"/>
+      <property name="pnfsManager" ref="PnfsManager"/>
+      <property name="fileOpHandler" ref="FileOpHandler"/>
+      <property name="fileOpMap" ref="FileOpMap"/>
+      <property name="poolInfoMap" ref="PoolInfoMap"/>
+    </bean>
+
+    <bean id="RequirementsClient" class="org.dcache.qos.remote.clients.RemoteQoSRequirementsClient">
+      <property name="requirementsService" ref="RequirementsService"/>
+    </bean>
+
+    <bean id="AdjustmentClient" class="org.dcache.qos.remote.clients.RemoteQoSAdjustmentClient">
+      <property name="adjustmentService" ref="AdjustmentService"/>
+    </bean>
+
+    <bean id="ScanResponseClient" class="org.dcache.qos.remote.clients.RemoteQoSScannerClient">
+      <property name="scannerService" ref="ScannerService"/>
+    </bean>
+
+    <bean id="ActionCompletedClient" class="org.dcache.qos.remote.clients.RemoteQoSActionCompletedClient">
+      <property name="requirementsService" ref="RequirementsService"/>
+    </bean>
+
+    <bean id="MessageGuard" class="org.dcache.qos.util.MessageGuard">
+      <property name="backlogHandler" ref="BacklogHandler"/>
+    </bean>
+
+    <bean id="BacklogHandler" class="org.dcache.qos.util.SerializingBacklogHandler"
+                              init-method="initialize" destroy-method="shutdown">
+      <constructor-arg value="${qos.home}/backlogged-messages"/>
+      <property name="receivers">
+        <set></set>
+      </property>
+    </bean>
+
+    <bean id="VerificationReceiver" class="org.dcache.qos.remote.receivers.QoSVerificationReceiver">
+      <property name="messageGuard" ref="MessageGuard"/>
+      <property name="fileOpHandler" ref="FileOpHandler"/>
+    </bean>
+</beans>

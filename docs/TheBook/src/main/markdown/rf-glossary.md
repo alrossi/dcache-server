@@ -185,7 +185,7 @@ A cached [replica](#replica) is a replica that should not be stored on tape.
 
 ## Resilience
 
-Resilience has to do with file preservation and availabilitykeeps. The Resilience
+Resilience has to do with file preservation and availability. The Resilience
 service or manager tracks the number of [replicas](#replica)
 of files within defined subsets of pools (marked as resilient) and makes
 sure this number is always as specified by the storage class of the file.
@@ -194,6 +194,12 @@ even if the hardware is not reliable, if a high volume of access to such
 files is foreseen, or if the file should be permanent but not reside on
 tertiary storage. The activation and configuration of resilience is described
 [in Chapter 6, The Resilience Service](config-resilience.md).
+
+## QoS
+
+QoS refers to whether a file needs to be on disk, on HSM, or both,
+as well as how many copies of the file should be maintained on those media,
+and in general how quickly accessible the file is.  See [The QoS Service](config-qos-engine.md).
 
 ## Storage Resource Manager (SRM)
 

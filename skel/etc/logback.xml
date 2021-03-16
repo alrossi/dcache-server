@@ -150,12 +150,11 @@
     </then>
   </if>
 
-
-  <appender name="resilience" class="ch.qos.logback.core.rolling.RollingFileAppender">
-    <file>${dcache.log.dir}/${dcache.domain.name}.resilience</file>
+  <appender name="qos" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${dcache.log.dir}/${dcache.domain.name}.qos</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-      <fileNamePattern>${dcache.log.dir}/${dcache.domain.name}.resilience.%d{yyyy-MM-dd}.gz</fileNamePattern>
-      <maxHistory>${dcache.log.resilience.max-history}</maxHistory>
+      <fileNamePattern>${dcache.log.dir}/${dcache.domain.name}.qos.%d{yyyy-MM-dd}.gz</fileNamePattern>
+      <maxHistory>${dcache.log.qos.max-history}</maxHistory>
     </rollingPolicy>
     <encoder>
       <pattern>${dcache.log.format.file}</pattern>
@@ -227,8 +226,13 @@
     <appender-ref ref="zookeeper"/>
   </logger>
 
+  <logger name="org.dcache.qos-log" additivity="false">
+    <appender-ref ref="qos"/>
+  </logger>
+
+  <!-- for backward compatibility, deprecated by qos -->
   <logger name="org.dcache.resilience-log" additivity="false">
-    <appender-ref ref="resilience"/>
+    <appender-ref ref="qos"/>
   </logger>
 
   <!-- Nothing is logged to this logger. Its sole purpose is to list
@@ -250,7 +254,7 @@
         <appender-ref ref="kafka" />
       </then>
     </if>
-    <appender-ref ref="resilience"/>
+    <appender-ref ref="qos"/>
   </logger>
 
   <turboFilter class="dmg.util.logback.CellThresholdFilter">
@@ -359,7 +363,14 @@
     </threshold>
 
     <threshold>
-      <appender>resilience</appender>
+      <appender>qos</appender>
+      <logger>org.dcache.qos-log</logger>
+      <level>${dcache.log.level.qos}</level>
+    </threshold>
+
+    <!-- For backward compatibility -->
+    <threshold>
+      <appender>qos</appender>
       <logger>org.dcache.resilience-log</logger>
       <level>${dcache.log.level.resilience}</level>
     </threshold>

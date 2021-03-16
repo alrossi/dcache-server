@@ -60,6 +60,8 @@ documents or software obtained from this server.
 package org.dcache.services.bulk.job;
 
 import com.google.common.collect.ImmutableMap;
+import diskCacheV111.poolManager.PoolManagerAware;
+import diskCacheV111.util.NamespaceHandlerAware;
 import diskCacheV111.util.PnfsHandler;
 import dmg.cells.nucleus.CellEndpoint;
 import dmg.cells.nucleus.CellLifeCycleAware;
@@ -71,15 +73,15 @@ import java.util.ServiceLoader;
 import javax.security.auth.Subject;
 import org.dcache.auth.attributes.Restriction;
 import org.dcache.cells.CellStub;
+import org.dcache.pinmanager.PinManagerAware;
 import org.dcache.poolmanager.PoolMonitor;
+import org.dcache.poolmanager.PoolMonitorAware;
 import org.dcache.services.bulk.BulkRequest;
 import org.dcache.services.bulk.BulkServiceException;
-import diskCacheV111.util.NamespaceHandlerAware;
-import org.dcache.pinmanager.PinManagerAware;
 import org.dcache.services.bulk.PingServiceAware;
-import diskCacheV111.poolManager.PoolManagerAware;
-import org.dcache.poolmanager.PoolMonitorAware;
+import org.dcache.services.bulk.QoSEngineAware;
 import org.dcache.services.bulk.handlers.BulkJobCompletionHandler;
+import org.dcache.services.bulk.util.QoSResponseReceiver;
 import org.dcache.vehicles.FileAttributes;
 import org.springframework.beans.factory.annotation.Required;
 
@@ -98,7 +100,9 @@ public class BulkJobFactory implements CellLifeCycleAware, CellMessageSender {
   private CellStub pinManager;
   private CellStub poolManager;
   private CellStub pingService;
+  private CellStub qosEngine;
   private PoolMonitor poolMonitor;
+  private QoSResponseReceiver qoSResponseReceiver;
   private CellEndpoint endpoint;
 
   @Override
@@ -129,6 +133,17 @@ public class BulkJobFactory implements CellLifeCycleAware, CellMessageSender {
   @Required
   public void setPoolMonitor(PoolMonitor poolMonitor) {
     this.poolMonitor = poolMonitor;
+  }
+
+  @Required
+  public void setQosEngine(CellStub qosEngine) {
+    this.qosEngine = qosEngine;
+  }
+
+  @Required
+  public void setQoSResponseReceiver(QoSResponseReceiver qoSResponseReceiver)
+  {
+    this.qoSResponseReceiver = qoSResponseReceiver;
   }
 
   @Override
@@ -227,6 +242,12 @@ public class BulkJobFactory implements CellLifeCycleAware, CellMessageSender {
 
     if (job instanceof PingServiceAware) {
       ((PingServiceAware) job).setPingService(pingService);
+    }
+
+    if (job instanceof QoSEngineAware) {
+      QoSEngineAware engineAware = (QoSEngineAware)job;
+      engineAware.setQoSEngine(qosEngine);
+      engineAware.setQoSResponseReceiver(qoSResponseReceiver);
     }
 
     if (job instanceof CellMessageSender) {

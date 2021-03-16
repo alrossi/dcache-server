@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd
+           http://www.springframework.org/schema/context
+           http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:property-placeholder/>
+    <context:annotation-config/>
+
+    <bean id="PnfsManager" class="org.dcache.cells.CellStub">
+      <description>PnfsManager communication stub</description>
+      <property name="destination" value="${qos.service.pnfsmanager}"/>
+      <property name="timeout" value="${qos.service.pnfsmanager.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.pnfsmanager.timeout.unit}"/>
+    </bean>
+
+    <bean id="Transitions" class="org.dcache.cells.CellStub">
+      <description></description>
+      <property name="destination" value="${qos.transition-completed-topic}"/>
+      <property name="timeout" value="${qos.service.transition.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.transition.timeout.unit}"/>
+    </bean>
+
+    <bean id="VerificationService" class="org.dcache.cells.CellStub">
+      <property name="destination" value="${qos.service.verification}"/>
+      <property name="timeout" value="${qos.service.verification.timeout}"/>
+      <property name="timeoutUnit" value="${qos.service.verification.timeout.unit}"/>
+      <property name="flags" value="#{ T(dmg.cells.nucleus.CellEndpoint.SendFlag).RETRY_ON_NO_ROUTE_TO_CELL }"/>
+    </bean>
+
+    <bean id="RequirementsProvider" class="org.dcache.qos.services.engine.provider.ALRPStorageUnitQoSProvider">
+      <property name="pnfsManager" ref="PnfsManager"/>
+      <!-- pool monitor is received via message -->
+    </bean>
+
+    <bean id="QoSEngineCounters" class="org.dcache.qos.services.engine.util.QoSEngineCounters"
+          init-method="initialize">
+      <property name="statisticsPath" value="${qos.home}/engine-statistics"/>
+      <property name="service">
+        <bean class="java.util.concurrent.ScheduledThreadPoolExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="1"/>
+        </bean>
+      </property>
+    </bean>
+
+    <bean id="FileQoSStatusHandler" class="org.dcache.qos.services.engine.handler.FileQoSStatusHandler">
+      <property name="requirementsListener" ref="RequirementsClient"/>
+      <property name="verificationListener" ref="VerificationClient"/>
+      <property name="qosTransitionTopic" ref="Transitions"/>
+      <property name="qoSEngineCounters" ref="QoSEngineCounters"/>
+      <property name="executor">
+        <bean class="org.dcache.util.BoundedCachedExecutor" destroy-method="shutdownNow">
+          <constructor-arg value="${qos.limits.requirements.submit-threads}"/>
+        </bean>
+      </property>
+    </bean>
+
+    <bean id="EngineAdmin" class="org.dcache.qos.services.engine.admin.QoSEngineAdmin">
+      <property name="messageGuard" ref="MessageGuard"/>
+      <property name="counters" ref="QoSEngineCounters"/>
+    </bean>
+
+    <bean id="RequirementsClient" class="org.dcache.qos.local.clients.LocalQoSRequirementsClient">
+      <property name="provider" ref="RequirementsProvider"/>
+    </bean>
+
+    <bean id="VerificationClient" class="org.dcache.qos.remote.clients.RemoteQoSVerificationClient">
+      <property name="verificationService" ref="VerificationService"/>
+    </bean>
+
+    <!-- There is no map initialization, so the message guard can be enabled at initialization -->
+    <bean id="MessageGuard" class="org.dcache.qos.util.MessageGuard" init-method="enable">
+      <property name="backlogHandler" ref="BacklogHandler"/>
+    </bean>
+
+    <bean id="BacklogHandler" class="org.dcache.qos.util.SerializingBacklogHandler"
+                              init-method="initialize" destroy-method="shutdown">
+      <constructor-arg value="${qos.home}/backlogged-messages"/>
+      <property name="receivers">
+        <set>
+          <ref bean="RequirementsReceiver"/>
+        </set>
+      </property>
+    </bean>
+
+    <bean id="RequirementsReceiver" class="org.dcache.qos.remote.receivers.QoSRequirementsReceiver">
+      <property name="messageGuard" ref="MessageGuard"/>
+      <property name="fileStatusHandler" ref="FileQoSStatusHandler"/>
+    </bean>
+</beans>

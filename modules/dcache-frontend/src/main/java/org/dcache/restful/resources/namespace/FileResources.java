@@ -1,6 +1,16 @@
 package org.dcache.restful.resources.namespace;
 
 import com.google.common.collect.Range;
+import diskCacheV111.util.AttributeExistsCacheException;
+import diskCacheV111.util.CacheException;
+import diskCacheV111.util.FileNotFoundCacheException;
+import diskCacheV111.util.FsPath;
+import diskCacheV111.util.NoAttributeCacheException;
+import diskCacheV111.util.PermissionDeniedCacheException;
+import diskCacheV111.util.PnfsHandler;
+import diskCacheV111.vehicles.PnfsWriteExtendedAttributesMessage.Mode;
+import dmg.cells.nucleus.NoRouteToCellException;
+import dmg.util.Exceptions;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -9,16 +19,15 @@ import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Authorization;
 import io.swagger.annotations.Example;
 import io.swagger.annotations.ExampleProperty;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.naming.directory.NoSuchAttributeException;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
@@ -38,36 +47,13 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import diskCacheV111.util.AttributeExistsCacheException;
-import diskCacheV111.util.CacheException;
-import diskCacheV111.util.FileNotFoundCacheException;
-import diskCacheV111.util.FsPath;
-import diskCacheV111.util.NoAttributeCacheException;
-import diskCacheV111.util.PermissionDeniedCacheException;
-import diskCacheV111.util.PnfsHandler;
-import diskCacheV111.vehicles.PnfsWriteExtendedAttributesMessage;
-import diskCacheV111.vehicles.PnfsWriteExtendedAttributesMessage.Mode;
-
-import dmg.cells.nucleus.NoRouteToCellException;
-import dmg.util.Exceptions;
-
 import org.dcache.cells.CellStub;
 import org.dcache.http.PathMapper;
 import org.dcache.namespace.FileAttribute;
 import org.dcache.namespace.FileType;
 import org.dcache.poolmanager.PoolMonitor;
-import org.dcache.qos.QoSTransitionEngine;
+import org.dcache.qos.data.FileQoSRequirements;
+import org.dcache.qos.remote.clients.RemoteQoSRequirementsClient;
 import org.dcache.restful.providers.JsonFileAttributes;
 import org.dcache.restful.util.HandlerBuilders;
 import org.dcache.restful.util.HttpServletRequests;
@@ -77,6 +63,12 @@ import org.dcache.util.list.DirectoryEntry;
 import org.dcache.util.list.DirectoryStream;
 import org.dcache.util.list.ListDirectoryHandler;
 import org.dcache.vehicles.FileAttributes;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
 import static org.dcache.restful.providers.SuccessfulResponse.successfulResponse;
 
@@ -109,6 +101,10 @@ public class FileResources {
     @Inject
     @Named("pool-manager-stub")
     private CellStub poolmanager;
+
+    @Inject
+    @Named("qos-engine")
+    private CellStub qosEngine;
 
     @Inject
     @Named("pinManagerStub")
@@ -372,12 +368,17 @@ public class FileResources {
                     break;
                 case "qos":
                     String targetQos = reqPayload.getString("target");
-                    new QoSTransitionEngine(poolmanager,
-                                            poolMonitor,
-                                            pnfsHandler,
-                                            pinmanager)
-                                    .adjustQoS(path,
-                                               targetQos, request.getRemoteHost());
+                    /*
+                     *  fire and forget, does not wait for transition to complete
+                     */
+                    FileAttributes attr
+                        = pnfsHandler.getFileAttributes(path.toString(),
+                            NamespaceUtils.getRequestedAttributes(false, false,
+                                                                     true, false));
+                    FileQoSRequirements requirements = getBasicRequirements(targetQos, attr);
+                    RemoteQoSRequirementsClient client = new RemoteQoSRequirementsClient();
+                    client.setRequirementsService(qosEngine);
+                    client.fileQoSRequirementsModified(requirements);
                     break;
                 case "rm-xattr":
                     Object namesArgument = reqPayload.get("names");
@@ -426,11 +427,9 @@ public class FileResources {
             throw new WebApplicationException(Response.status(409, "No such attribute")
                     .build());
         } catch (UnsupportedOperationException |
-                        URISyntaxException |
                         JSONException |
                         CacheException |
-                        InterruptedException |
-                        NoRouteToCellException e) {
+                        IllegalArgumentException e) {
             throw new BadRequestException(e.getMessage(), e);
         }
         return successfulResponse(Response.Status.CREATED);
@@ -481,5 +480,23 @@ public class FileResources {
             throw new InternalServerErrorException(e);
         }
         return successfulResponse(Response.Status.OK);
+    }
+
+    private FileQoSRequirements getBasicRequirements(String targetQos, FileAttributes attributes) {
+        FileQoSRequirements requirements = new FileQoSRequirements(attributes.getPnfsId(), attributes);
+
+        if (targetQos == null) {
+            throw new IllegalArgumentException("no target qos given.");
+        }
+
+        if (targetQos.contains("disk")) {
+            requirements.setRequiredDisk(1);
+        }
+
+        if (targetQos.contains("tape")) {
+            requirements.setRequiredTape(1);
+        }
+
+        return requirements;
     }
 }

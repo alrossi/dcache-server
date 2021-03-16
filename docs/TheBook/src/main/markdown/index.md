@@ -55,6 +55,8 @@ dCache Book
 
         -   [poolmanager service](config-PoolManager.md)
 
+        -   [qos service](config-qos-engine.md)
+
         -   [resilience service](config-resilience.md)
 
         -   spacemanager service

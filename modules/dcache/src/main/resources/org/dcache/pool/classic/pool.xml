@@ -528,6 +528,28 @@
       <property name="prefix" value="pool.mover.http.custom-response-header"/>
   </bean>
 
+  <bean id="qos-message-handler" class="org.dcache.pool.qos.QoSMessageHandler"
+    init-method="initialize">
+    <description>For communication with the qos verifier</description>
+    <property name="executionService">
+      <bean class="org.dcache.util.CDCExecutorServiceDecorator">
+        <constructor-arg>
+          <bean class="java.util.concurrent.Executors" factory-method="newFixedThreadPool"
+            destroy-method="shutdownNow">
+            <constructor-arg value="${pool.qos.request-threads}"/>
+          </bean>
+        </constructor-arg>
+      </bean>
+    </property>
+    <property name="repository" ref="rep"/>
+    <property name="listener">
+      <bean class="org.dcache.pool.qos.BrokenFileListener">
+        <constructor-arg ref="corrupt-file-topic"/>
+        <constructor-arg value="${pool.name}"/>
+      </bean>
+    </property>
+  </bean>
+
   <bean id="resilience-message-handler" class="org.dcache.pool.resilience.ResilienceMessageHandler"
     init-method="initialize">
     <description>For communication with the replica manager</description>
