@@ -282,10 +282,10 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
 
             XrootdResponse response
                 = conditionallyHandleThirdPartyRequest(req,
-                                                       sessionInfo,
-                                                       opaque,
-                                                       path,
-                                                       remoteAddress.getHostName());
+                sessionInfo,
+                opaque,
+                path,
+                remoteAddress.getHostName());
             if (response != null) {
                 return response;
             }
@@ -307,7 +307,7 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
                 }
             } catch (NumberFormatException exception) {
                 _log.warn("Ignoring malformed oss.asize: {}",
-                          exception.getMessage());
+                    exception.getMessage());
             }
 
             _log.info("OPAQUE : {}", opaque);
@@ -322,9 +322,9 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
             opaque.put("org.dcache.xrootd.client", getTpcClientId(req.getSession()));
             String opaqueString = OpaqueStringParser.buildOpaqueString(opaque);
 
-           /*
-            * Interact with core dCache to open the requested file.
-            */
+            /*
+             * Interact with core dCache to open the requested file.
+             */
             XrootdTransfer transfer;
             if (neededPerm == FilePerm.WRITE) {
                 /**
@@ -335,17 +335,17 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
                  */
                 boolean overwrite = req.isDelete() && !req.isNew();
                 boolean persistOnSuccessfulClose = (req.getOptions()
-                        & XrootdProtocol.kXR_posc) == XrootdProtocol.kXR_posc;
+                    & XrootdProtocol.kXR_posc) == XrootdProtocol.kXR_posc;
                 // TODO: replace with req.isPersistOnSuccessfulClose() with the latest xrootd4j
                 transfer = _door.write(remoteAddress, path, triedHosts,
-                        ioQueue, uuid, true, overwrite, size,
-                                       sessionInfo.getMaximumUploadSize(),
-                        localAddress, req.getSubject(), sessionInfo.getRestriction(),
-                                       persistOnSuccessfulClose,
-                        ((sessionInfo.isLoggedIn()) ?
-                                        sessionInfo.getUserRootPath() : _rootPath),
-                        req.getSession().getDelegatedCredential(),
-                        opaque);
+                    ioQueue, uuid, true, overwrite, size,
+                    sessionInfo.getMaximumUploadSize(),
+                    localAddress, req.getSubject(), sessionInfo.getRestriction(),
+                    persistOnSuccessfulClose,
+                    ((sessionInfo.isLoggedIn()) ?
+                        sessionInfo.getUserRootPath() : _rootPath),
+                    req.getSession().getDelegatedCredential(),
+                    opaque);
             } else {
                 /*
                  * If this is a tpc transfer, then dCache is source here.
@@ -366,8 +366,8 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
                 }
 
                 transfer = _door.read(remoteAddress, path, triedHosts, ioQueue,
-                                uuid, localAddress, subject,
-                                sessionInfo.getRestriction(), opaque);
+                    uuid, localAddress, subject,
+                    sessionInfo.getRestriction(), opaque);
 
                 /*
                  * Again, if this is a tpc transfer, then dCache is source here.
@@ -380,10 +380,10 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
                 String client = opaque.get("tpc.org");
                 if (client != null) {
                     int index = client.indexOf("@");
-                    if (index != -1 && index < client.length()-1) {
-                        client = client.substring(index+1);
+                    if (index != -1 && index < client.length() - 1) {
+                        client = client.substring(index + 1);
                         transfer.setClientAddress(new InetSocketAddress(client,
-                                                                        0));
+                            0));
                     }
                 }
             }
@@ -405,7 +405,7 @@ public class XrootdRedirectHandler extends ConcurrentXrootdRequestHandler
             String host = address.getHostName();
             if (InetAddresses.isInetAddress(host)) {
                 _log.warn("Unable to resolve IP address {} "
-                                          + "to a canonical name", host);
+                    + "to a canonical name", host);
             }
 
             _log.info("Redirecting to {}, {}", host, address);
